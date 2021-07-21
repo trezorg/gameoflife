@@ -24,14 +24,14 @@ var (
 
 func TestGameInit(t *testing.T) {
 	size := 10
-	game, err := New(size)
+	game, err := New(size, nil)
 	require.NoError(t, err)
 	require.Equal(t, size, game.size)
 }
 
 func TestGameNeighbors(t *testing.T) {
 	size := 10
-	game, err := New(size)
+	game, err := New(size, initCells)
 	require.NoError(t, err)
 	require.Equal(t, size, game.size)
 
@@ -45,14 +45,14 @@ func TestGameNeighbors(t *testing.T) {
 
 func TestGameStartTwoAliveCells(t *testing.T) {
 	size := 10
-	game, err := New(size)
+	game, err := New(size, initCells)
 	require.NoError(t, err)
 	require.Equal(t, size, game.size)
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	ctx, cancel := context.WithCancel(context.Background())
-	out, err := game.Start(ctx, wg, initCells, 200)
+	out, err := game.Start(ctx, wg, 200)
 	require.NoError(t, err)
 
 	go func() {
@@ -76,14 +76,14 @@ func TestGameGliderPattern(t *testing.T) {
 
 	size := 25
 	gliderCells := GetGliderPattern(size)
-	game, err := New(size)
+	game, err := New(size, gliderCells)
 	require.NoError(t, err)
 	require.Equal(t, size, game.size)
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	ctx, cancel := context.WithCancel(context.Background())
-	out, err := game.Start(ctx, wg, gliderCells, 200)
+	out, err := game.Start(ctx, wg, 200)
 	require.NoError(t, err)
 	go func() {
 		for range out {

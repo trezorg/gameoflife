@@ -8,28 +8,35 @@ import (
 )
 
 type Game struct {
-	cells [][]cell
 	size  int
+	alive map[position]cell
 }
 
 // New initializes game
 // size: int. grid size
-func New(size int) (*Game, error) {
+func New(size int, initialCells []cell) (*Game, error) {
 	if size <= 0 {
 		return nil, fmt.Errorf("malformed game size: %d", size)
 	}
-	gridCells := make([][]cell, size)
-	for y := 0; y < size; y++ {
-		row := make([]cell, size)
-		for x := 0; x < size; x++ {
-			row[x] = cell{
-				cellType: DEAD,
-				position: position{x: x, y: y},
-			}
-			gridCells[y] = row
-		}
+	if len(initialCells) > size*size {
+		return nil, fmt.Errorf(
+			"number of initial positions %d is more than number of empty initialCells: %d",
+			len(initialCells),
+			size*size,
+		)
 	}
-	return &Game{cells: gridCells, size: size}, nil
+
+	alive := make(map[position]cell, len(initialCells))
+
+	for _, initialCell := range initialCells {
+		if initialCell.position.y > size-1 || initialCell.position.x > size-1 {
+			return nil, fmt.Errorf("cell position %v is out of the game box", initialCell.position)
+		}
+
+		alive[initialCell.position] = initialCell
+	}
+
+	return &Game{alive: alive, size: size}, nil
 }
 
 // Iterate over game cells starting with the first row
@@ -44,10 +51,26 @@ func (game *Game) gameIterator() func() (cell, error) {
 			}
 
 		}
-		c := game.cells[y][x]
+		c := game.getCellByPosition(position{x, y})
 		x++
 		return c, nil
 	}
+}
+
+func (game *Game) aliveCells() []cell {
+	res := make([]cell, len(game.alive))
+	for _, c := range game.alive {
+		res = append(res, c)
+	}
+	return res
+}
+
+func (game *Game) getCellByPosition(pos position) cell {
+	c, ok := game.alive[pos]
+	if !ok {
+		c = cell{cellType: DEAD, position: pos}
+	}
+	return c
 }
 
 func (game *Game) getCellsToCheck(changedCells []cell) []cell {
@@ -77,7 +100,8 @@ func (game *Game) getNeighbors(c cell) []cell {
 			}
 			posX := (c.position.x + j + game.size) % game.size
 			posY := (c.position.y + i + game.size) % game.size
-			neighbours = append(neighbours, game.cells[posY][posX])
+			pos := position{posX, posY}
+			neighbours = append(neighbours, game.getCellByPosition(pos))
 		}
 	}
 	return neighbours
@@ -145,21 +169,7 @@ func GetGliderPattern(gameSize int) []cell {
 	}
 }
 
-func (game *Game) Start(ctx context.Context, wg *sync.WaitGroup, initialCells []cell, sleepTimeOutMillis int) (<-chan map[position]cell, error) {
-
-	if len(initialCells) > game.size*game.size {
-		return nil, fmt.Errorf(
-			"number of initial positions %d is more than number of empty initialCells: %d",
-			len(initialCells),
-			game.size*game.size,
-		)
-	}
-	for _, initialCell := range initialCells {
-		if initialCell.position.y > game.size-1 || initialCell.position.x > game.size-1 {
-			return nil, fmt.Errorf("cell position %v is out of the game box", initialCell.position)
-		}
-		game.cells[initialCell.position.y][initialCell.position.x] = initialCell
-	}
+func (game *Game) Start(ctx context.Context, wg *sync.WaitGroup, sleepTimeOutMillis int) (<-chan map[position]cell, error) {
 
 	out := make(chan map[position]cell)
 
@@ -173,12 +183,7 @@ func (game *Game) Start(ctx context.Context, wg *sync.WaitGroup, initialCells []
 			wg.Done()
 		}()
 
-		cellsToCheck := game.getCellsToCheck(initialCells)
-		alive := make(map[position]cell, len(initialCells))
-
-		for _, c := range initialCells {
-			alive[c.position] = c
-		}
+		cellsToCheck := game.getCellsToCheck(game.aliveCells())
 
 		for {
 			select {
@@ -190,17 +195,16 @@ func (game *Game) Start(ctx context.Context, wg *sync.WaitGroup, initialCells []
 					return
 				}
 				for _, c := range changed {
-					game.cells[c.position.y][c.position.x] = c
 					if c.cellType == ALIVE {
-						alive[c.position] = c
+						game.alive[c.position] = c
 					} else {
-						delete(alive, c.position)
+						delete(game.alive, c.position)
 					}
 				}
 
 				cellsToCheck = game.getCellsToCheck(changed)
 
-				out <- alive
+				out <- game.alive
 			}
 		}
 	}()

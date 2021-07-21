@@ -16,7 +16,7 @@ func main() {
 
 	size := 25
 	gliderCells := game.GetGliderPattern(size)
-	g, err := game.New(size)
+	g, err := game.New(size, gliderCells)
 
 	if err != nil {
 		fmt.Println(err)
@@ -28,7 +28,7 @@ func main() {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	ctx, cancel := context.WithCancel(context.Background())
-	out, err := g.Start(ctx, wg, gliderCells, 500)
+	out, err := g.Start(ctx, wg, 500)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
