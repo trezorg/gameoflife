@@ -10,11 +10,10 @@ import (
 type Game struct {
 	size  int
 	alive map[position]cell
+	rule  composeRule
 }
 
-// New initializes game
-// size: int. grid size
-func New(size int, initialCells []cell) (*Game, error) {
+func _new(size int, rule composeRule, initialCells []cell) (*Game, error) {
 	if size <= 0 {
 		return nil, fmt.Errorf("malformed game size: %d", size)
 	}
@@ -36,7 +35,12 @@ func New(size int, initialCells []cell) (*Game, error) {
 		alive[initialCell.position] = initialCell
 	}
 
-	return &Game{alive: alive, size: size}, nil
+	return &Game{alive: alive, size: size, rule: rule}, nil
+}
+
+// New initializes game
+func New(size int, initialCells []cell) (*Game, error) {
+	return _new(size, defaultRule, initialCells)
 }
 
 // Iterate over game cells starting with the first row
@@ -108,27 +112,12 @@ func (game *Game) getNeighbors(c cell) []cell {
 }
 
 func (game *Game) getCellNextState(c cell) cellType {
-	alive := 0
-	for _, c := range game.getNeighbors(c) {
-		if c.cellType == ALIVE {
-			alive++
-		}
-	}
-	if c.cellType == ALIVE {
-		if alive < 2 {
-			return DEAD
-		}
-		if alive == 2 || alive == 3 {
-			return ALIVE
-		}
-		if alive > 3 {
-			return DEAD
-		}
-	}
-	if c.cellType == DEAD && alive == 3 {
-		return ALIVE
-	}
-	return c.cellType
+	return game.rule.getCellType(c, game)
+}
+
+// SetRule sets game rule
+func (game *Game) SetRule(rule composeRule) {
+	game.rule = rule
 }
 
 func (game *Game) getCellsToChange(cellsToCheck []cell) []cell {
